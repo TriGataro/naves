@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#080b1b">
+    <meta name="description" content="Defiende la galaxia en este juego arcade inspirado en Galaga.">
+    <title>Galaga — Defensa galáctica</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/phaser@4.0.0/dist/phaser.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" defer></script>
+    <script src="index.js" defer></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="container py-4 py-lg-5">
+        <div class="d-flex align-items-center justify-content-between gap-3">
+          <a class="brand d-flex align-items-center gap-3 text-decoration-none" href="#" aria-label="Galaga, inicio">
+            <span class="brand-icon" aria-hidden="true"><i class="bi bi-stars"></i></span>
+            <span>
+              <span class="brand-name d-block">GALAGA</span>
+              <span class="brand-caption d-block">DEFENSA GALÁCTICA</span>
+            </span>
+          </a>
+          <button class="btn btn-share" id="share-button" type="button">
+            <i class="bi bi-share me-sm-2" aria-hidden="true"></i>
+            <span>Compartir</span>
+          </button>
+        </div>
+      </header>
+
+      <main class="container pb-4 pb-lg-5">
+        <section class="game-panel mx-auto" aria-labelledby="game-title">
+          <div class="game-heading d-flex flex-wrap align-items-end justify-content-between gap-3">
+            <div>
+              <p class="eyebrow mb-2">UNA GALAXIA EN PELIGRO</p>
+              <h1 id="game-title" class="mb-0">Defiende tu <span>sector</span></h1>
+            </div>
+            <p class="game-subtitle mb-1">Destruye la flota invasora. No dejes que te alcancen.</p>
+          </div>
+
+          <div class="game-frame mt-4">
+            <div class="hud" aria-label="Marcador">
+              <div class="hud-item"><span class="hud-label">PUNTOS</span><strong id="score-value">00000</strong></div>
+              <div class="hud-item"><span class="hud-label">RÉCORD</span><strong id="best-value">00000</strong></div>
+              <div class="hud-item"><span class="hud-label">OLEADA</span><strong id="wave-value">01</strong></div>
+              <div class="hud-item lives-item"><span class="hud-label">VIDAS</span><strong id="lives-value" aria-label="3 vidas">♥ ♥ ♥</strong></div>
+              <button class="pause-button" id="pause-button" type="button" aria-label="Pausar juego" hidden>
+                <i class="bi bi-pause-fill" aria-hidden="true"></i><span>Pausar</span>
+              </button>
+            </div>
+
+            <div class="canvas-wrap">
+              <div id="game-container" aria-label="Área de juego Galaga"></div>
+              <div class="game-overlay" id="game-overlay">
+                <div class="overlay-card">
+                  <span class="overlay-icon" aria-hidden="true"><i class="bi bi-rocket-takeoff"></i></span>
+                  <p class="eyebrow mb-2" id="overlay-eyebrow">PILOTO, TE NECESITAMOS</p>
+                  <h2 id="overlay-title">¿Listo para despegar?</h2>
+                  <p id="overlay-message">Muévete, dispara y protege la galaxia de la invasión.</p>
+                  <button class="btn btn-launch" id="start-button" type="button">
+                    <i class="bi bi-play-fill me-2" aria-hidden="true"></i>Iniciar partida
+                  </button>
+                </div>
+              </div>
+            </div>
+            <p class="storage-notice mb-0" id="storage-notice" role="status" aria-live="polite"></p>
+          </div>
+
+          <div class="controls-row d-flex flex-wrap justify-content-between align-items-center gap-3 mt-3">
+            <p class="controls-hint mb-0"><span class="keycap">←</span>/<span class="keycap">A</span> <span class="keycap">→</span>/<span class="keycap">D</span> mover <span class="hint-divider">·</span> <span class="keycap">ESPACIO</span> disparar <span class="hint-divider">·</span> <span class="keycap">P</span> pausar</p>
+            <p class="controls-hint mb-0"><i class="bi bi-phone me-1" aria-hidden="true"></i> También puedes jugar en tu celular</p>
+          </div>
+          <div class="touch-controls" aria-label="Controles táctiles">
+            <button class="touch-button" type="button" data-control="left" aria-label="Mover a la izquierda"><i class="bi bi-arrow-left" aria-hidden="true"></i></button>
+            <button class="touch-button touch-fire" type="button" data-control="fire" aria-label="Disparar"><i class="bi bi-bullseye" aria-hidden="true"></i><span>DISPARAR</span></button>
+            <button class="touch-button" type="button" data-control="right" aria-label="Mover a la derecha"><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
+          </div>
+        </section>
+      </main>
+
+      <footer class="container py-4">
+        <p class="footer-credit mb-0">
+          Página hecha por
+          <a href="https://github.com/TriGataro" target="_blank" rel="noopener noreferrer">
+            <i class="bi bi-github" aria-hidden="true"></i> Trigataro
+          </a>
+        </p>
+      </footer>
+    </div>
+  </body>
+</html>

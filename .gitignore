@@ -1,0 +1,5 @@
+# Ignora archivos y directorios ocultos, incluidos los ajustes locales de agentes.
+.*
+!.gitignore
+**/.*
+!**/.gitignore
