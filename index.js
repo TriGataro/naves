@@ -26,6 +26,54 @@ bestValue.textContent = String(bestScore).padStart(5, "0");
 class GalagaScene extends Phaser.Scene {
   constructor() {
     super("galaga");
+    this.audioContext = null;
+  }
+
+  // Prepara el audio después de una interacción del jugador para respetar las políticas del navegador.
+  initializeAudio() {
+    const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextConstructor) {
+      storageNotice.textContent = "Este navegador no admite efectos de sonido.";
+      return;
+    }
+
+    try {
+      if (!this.audioContext) {
+        this.audioContext = new AudioContextConstructor();
+      }
+      if (this.audioContext.state === "suspended") {
+        this.audioContext.resume().catch(() => {
+          storageNotice.textContent = "No se pudieron activar los efectos de sonido.";
+        });
+      }
+    } catch (error) {
+      storageNotice.textContent = "No se pudieron activar los efectos de sonido.";
+    }
+  }
+
+  // Genera un efecto breve con un oscilador para no depender de archivos de audio externos.
+  playSound(frequency, endFrequency, duration, type = "square", volume = 0.04, delay = 0) {
+    if (!this.audioContext || this.audioContext.state !== "running") {
+      return;
+    }
+
+    const startAt = this.audioContext.currentTime + delay;
+    const oscillator = this.audioContext.createOscillator();
+    const gain = this.audioContext.createGain();
+    oscillator.type = type;
+    oscillator.frequency.setValueAtTime(frequency, startAt);
+    oscillator.frequency.exponentialRampToValueAtTime(endFrequency, startAt + duration);
+    gain.gain.setValueAtTime(0.0001, startAt);
+    gain.gain.exponentialRampToValueAtTime(volume, startAt + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + duration);
+    oscillator.connect(gain);
+    gain.connect(this.audioContext.destination);
+    oscillator.start(startAt);
+    oscillator.stop(startAt + duration);
+    oscillator.addEventListener("ended", () => {
+      oscillator.disconnect();
+      gain.disconnect();
+    }, { once: true });
   }
 
   // Crea las texturas, el jugador, la primera oleada y las colisiones del juego.
@@ -308,6 +356,7 @@ class GalagaScene extends Phaser.Scene {
       return;
     }
     this.lastShotAt = this.time.now;
+    this.playSound(720, 260, 0.09, "square", 0.025);
     const bullet = this.bullets.create(this.player.x, this.player.y - 22, "player-bullet");
     bullet.setDepth(1);
     bullet.body.setAllowGravity(false);
@@ -325,6 +374,7 @@ class GalagaScene extends Phaser.Scene {
     const shooter = Phaser.Utils.Array.GetRandom(livingEnemies);
     const speed = this.getEnemyBulletSpeed();
     const isBoss = shooter.getData("isBoss");
+    this.playSound(isBoss ? 190 : 260, 110, 0.16, "sawtooth", 0.025);
     const spread = isBoss ? [-0.22, 0, 0.22] : [0];
     spread.forEach((angle) => {
       const bullet = this.enemyBullets.create(shooter.x, shooter.y + 30, "enemy-bullet");
@@ -378,6 +428,7 @@ class GalagaScene extends Phaser.Scene {
   // Aplica daño a los enemigos, actualiza puntos y completa el nivel al vaciar la formación.
   hitEnemy(bullet, enemy) {
     bullet.destroy();
+    this.playSound(420, 180, 0.11, "triangle", 0.035);
     if (enemy.getData("isBoss")) {
       const health = enemy.getData("health") - 1;
       enemy.setData("health", health);
@@ -415,6 +466,9 @@ class GalagaScene extends Phaser.Scene {
 
   // Muestra el resultado del nivel y espera a que el jugador inicie la siguiente oleada.
   finishWave(defeatedBoss) {
+    this.playSound(523, 784, 0.16, "triangle", 0.04);
+    this.playSound(659, 988, 0.18, "triangle", 0.04, 0.12);
+    this.playSound(defeatedBoss ? 1047 : 784, defeatedBoss ? 1318 : 1047, 0.28, "triangle", 0.045, 0.24);
     this.wave += 1;
     waveValue.textContent = String(this.wave).padStart(2, "0");
     this.awaitingNextWave = true;
@@ -437,6 +491,7 @@ class GalagaScene extends Phaser.Scene {
     if (collidedObject !== this.player) {
       collidedObject.destroy();
     }
+    this.playSound(180, 70, 0.28, "sawtooth", 0.055);
     this.invulnerableUntil = this.time.now + 650;
     this.lives -= 1;
     livesValue.textContent = `${"♥ ".repeat(this.lives)}${"♡ ".repeat(3 - this.lives)}`.trim();
@@ -457,6 +512,7 @@ class GalagaScene extends Phaser.Scene {
     if (!this.isPlaying) {
       return;
     }
+    this.playSound(330, 165, 0.45, "triangle", 0.045);
     this.isPlaying = false;
     this.awaitingNextWave = false;
     this.isPausedGame = false;
@@ -471,6 +527,7 @@ class GalagaScene extends Phaser.Scene {
 
   // Inicia la siguiente oleada después de mostrar el mensaje de nivel superado.
   continueWave() {
+    this.playSound(440, 660, 0.2, "triangle", 0.04);
     this.awaitingNextWave = false;
     this.createWave();
     this.nextEnemyShotAt = this.time.now + this.getEnemyFireDelay();
@@ -488,6 +545,7 @@ class GalagaScene extends Phaser.Scene {
     if (!this.isPlaying) {
       return;
     }
+    this.playSound(440, 330, 0.12, "sine", 0.035);
     this.isPausedGame = true;
     this.physics.world.pause();
     overlay.classList.remove("is-hidden");
@@ -501,6 +559,7 @@ class GalagaScene extends Phaser.Scene {
 
   // Cierra el panel de pausa y reactiva la física y los controles.
   resumeGame() {
+    this.playSound(330, 440, 0.12, "sine", 0.035);
     this.isPausedGame = false;
     this.physics.world.resume();
     this.isPlaying = true;
@@ -511,6 +570,8 @@ class GalagaScene extends Phaser.Scene {
 
   // Reinicia la escena con el marcador y las vidas iniciales.
   startGame() {
+    this.initializeAudio();
+    this.playSound(440, 660, 0.2, "triangle", 0.04);
     scoreValue.textContent = "00000";
     waveValue.textContent = "01";
     livesValue.textContent = "♥ ♥ ♥";
