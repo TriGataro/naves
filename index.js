@@ -9,10 +9,18 @@ const overlayTitle = document.querySelector("#overlay-title");
 const overlayMessage = document.querySelector("#overlay-message");
 const startButton = document.querySelector("#start-button");
 const pauseButton = document.querySelector("#pause-button");
+const restartButton = document.querySelector("#restart-button");
+const overlayRestartButton = document.querySelector("#overlay-restart-button");
 const storageNotice = document.querySelector("#storage-notice");
+const virtualJoystick = document.querySelector("#virtual-joystick");
 
 const STORAGE_KEY = "galaga-best-score";
-const touchState = { left: false, right: false, fire: false };
+const GAME_HEIGHT = 600;
+const MOBILE_GAME_WIDTH = 800;
+const DESKTOP_GAME_WIDTH = 900;
+const desktopLayout = window.matchMedia("(min-width: 576px)");
+const getGameWidth = () => desktopLayout.matches ? DESKTOP_GAME_WIDTH : MOBILE_GAME_WIDTH;
+const touchState = { horizontal: 0, vertical: 0, fire: false };
 let bestScore = 0;
 
 // Recupera el récord guardado y avisa si el navegador bloquea el almacenamiento local.
@@ -80,7 +88,7 @@ class GalagaScene extends Phaser.Scene {
   create() {
     this.createTextures();
     this.createStars();
-    this.player = this.physics.add.image(400, 535, "player-ship");
+    this.player = this.physics.add.image(this.scale.width / 2, GAME_HEIGHT - 65, "player-ship");
     this.player.setCollideWorldBounds(true);
     this.player.body.setAllowGravity(false);
     this.player.setDepth(2);
@@ -88,8 +96,8 @@ class GalagaScene extends Phaser.Scene {
     this.enemyBullets = this.physics.add.group({ allowGravity: false });
     this.enemies = this.physics.add.group({ allowGravity: false, immovable: true });
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.keys = this.input.keyboard.addKeys("A,D,SPACE,P");
-    this.physics.world.setBounds(0, 0, 800, 600);
+    this.keys = this.input.keyboard.addKeys("W,A,S,D,SPACE,P,R");
+    this.physics.world.setBounds(0, 0, this.scale.width, GAME_HEIGHT);
     this.score = 0;
     this.lives = 3;
     this.wave = 1;
@@ -231,8 +239,8 @@ class GalagaScene extends Phaser.Scene {
     for (let index = 0; index < 85; index += 1) {
       const size = Math.random() > 0.9 ? 2 : 1;
       const star = this.add.circle(
-        Phaser.Math.Between(0, 800),
-        Phaser.Math.Between(0, 600),
+        Phaser.Math.Between(0, this.scale.width),
+        Phaser.Math.Between(0, GAME_HEIGHT),
         size,
         index % 4 === 0 ? 0x8c9aff : 0xffffff,
         Phaser.Math.FloatBetween(0.25, 0.8)
@@ -247,7 +255,7 @@ class GalagaScene extends Phaser.Scene {
     this.formationOffset = 0;
     this.formationDirection = 1;
     if (this.wave % 4 === 0) {
-      const boss = this.enemies.create(400, 120, "enemy-boss");
+      const boss = this.enemies.create(this.scale.width / 2, 120, "enemy-boss");
       boss.setDepth(2);
       boss.setScale(1.65);
       boss.body.setAllowGravity(false);
@@ -255,7 +263,7 @@ class GalagaScene extends Phaser.Scene {
       boss.setData("health", 12 + (this.wave / 4 - 1) * 4);
       boss.setData("maxHealth", boss.getData("health"));
       this.bossHealthBar = this.add.graphics().setDepth(3);
-      this.bossLabel = this.add.text(400, 24, "JEFE DE SECTOR", {
+      this.bossLabel = this.add.text(this.scale.width / 2, 24, "JEFE DE SECTOR", {
         color: "#ffc4f4",
         fontFamily: "system-ui, sans-serif",
         fontSize: "16px",
@@ -268,7 +276,8 @@ class GalagaScene extends Phaser.Scene {
     for (let row = 0; row < 4; row += 1) {
       for (let column = 0; column < 8; column += 1) {
         const texture = row === 0 ? "enemy-elite" : row === 1 ? "enemy-guardian" : "enemy-scout";
-        const enemy = this.enemies.create(160 + column * 68, 80 + row * 53, texture);
+        const formationOffset = (this.scale.width - MOBILE_GAME_WIDTH) / 2;
+        const enemy = this.enemies.create(160 + formationOffset + column * 68, 80 + row * 53, texture);
         enemy.setDepth(1);
         enemy.body.setAllowGravity(false);
         enemy.setData("baseX", enemy.x);
@@ -278,6 +287,11 @@ class GalagaScene extends Phaser.Scene {
 
   // Lee teclado y controles táctiles, mueve la nave y dispara mientras la partida esté activa.
   update(_time, delta) {
+    if (Phaser.Input.Keyboard.JustDown(this.keys.R)) {
+      this.restartGame();
+      return;
+    }
+
     if (this.isPausedGame) {
       if (Phaser.Input.Keyboard.JustDown(this.keys.P)) {
         this.resumeGame();
@@ -291,15 +305,15 @@ class GalagaScene extends Phaser.Scene {
 
     this.stars.forEach((star) => {
       star.y += star.getData("speed") * delta / 1000;
-      if (star.y > 600) {
+      if (star.y > GAME_HEIGHT) {
         star.y = 0;
-        star.x = Phaser.Math.Between(0, 800);
+        star.x = Phaser.Math.Between(0, this.scale.width);
       }
     });
 
     [this.bullets, this.enemyBullets].forEach((group) => {
       group.getChildren().forEach((bullet) => {
-        if (bullet && bullet.active && (bullet.y < -20 || bullet.y > 620)) {
+        if (bullet && bullet.active && (bullet.y < -20 || bullet.y > GAME_HEIGHT + 20)) {
           bullet.destroy();
         }
       });
@@ -309,10 +323,25 @@ class GalagaScene extends Phaser.Scene {
       return;
     }
 
-    const movingLeft = this.cursors.left.isDown || this.keys.A.isDown || touchState.left;
-    const movingRight = this.cursors.right.isDown || this.keys.D.isDown || touchState.right;
-    const direction = Number(movingRight) - Number(movingLeft);
-    this.player.setVelocityX(direction * 390);
+    const horizontalDirection = Phaser.Math.Clamp(
+      Number(this.cursors.right.isDown || this.keys.D.isDown)
+        - Number(this.cursors.left.isDown || this.keys.A.isDown)
+        + touchState.horizontal,
+      -1,
+      1
+    );
+    const verticalDirection = Phaser.Math.Clamp(
+      Number(this.cursors.down.isDown || this.keys.S.isDown)
+        - Number(this.cursors.up.isDown || this.keys.W.isDown)
+        + touchState.vertical,
+      -1,
+      1
+    );
+    const directionLength = Math.hypot(horizontalDirection, verticalDirection) || 1;
+    this.player.setVelocity(
+      horizontalDirection / directionLength * 390,
+      verticalDirection / directionLength * 390
+    );
 
     if (this.cursors.space.isDown || this.keys.SPACE.isDown || touchState.fire) {
       this.shoot();
@@ -324,7 +353,7 @@ class GalagaScene extends Phaser.Scene {
 
     const boss = this.enemies.getChildren().find((enemy) => enemy.active && enemy.getData("isBoss"));
     if (boss) {
-      boss.x = 400 + Math.sin(this.time.now / 650) * 245;
+      boss.x = this.scale.width / 2 + Math.sin(this.time.now / 650) * this.scale.width * 0.31;
       boss.y = 125 + Math.sin(this.time.now / 380) * 14;
       this.drawBossHealth(boss);
       return;
@@ -475,6 +504,9 @@ class GalagaScene extends Phaser.Scene {
     this.isPlaying = false;
     this.player.setVelocity(0, 0);
     pauseButton.hidden = true;
+    if (overlayRestartButton) {
+      overlayRestartButton.hidden = true;
+    }
     overlay.classList.remove("is-hidden");
     overlayEyebrow.textContent = defeatedBoss ? "JEFE DERROTADO" : "SECTOR DESPEJADO";
     overlayTitle.textContent = defeatedBoss ? "¡Jefe derrotado!" : "¡Nivel superado!";
@@ -518,6 +550,9 @@ class GalagaScene extends Phaser.Scene {
     this.isPausedGame = false;
     this.player.setVelocity(0, 0);
     pauseButton.hidden = true;
+    if (overlayRestartButton) {
+      overlayRestartButton.hidden = true;
+    }
     overlay.classList.remove("is-hidden");
     overlayEyebrow.textContent = "FIN DE LA PARTIDA";
     overlayTitle.textContent = "¡Buen combate, piloto!";
@@ -551,9 +586,12 @@ class GalagaScene extends Phaser.Scene {
     overlay.classList.remove("is-hidden");
     overlayEyebrow.textContent = "PARTIDA EN PAUSA";
     overlayTitle.textContent = "Tómate un respiro";
-    overlayMessage.textContent = "La galaxia espera. Pulsa P o continúa cuando estés listo.";
+    overlayMessage.textContent = "La galaxia espera. Pulsa P para continuar o reinicia cuando quieras.";
     startButton.innerHTML = '<i class="bi bi-play-fill me-2" aria-hidden="true"></i>Continuar';
-    pauseButton.innerHTML = '<i class="bi bi-play-fill" aria-hidden="true"></i><span>Continuar</span>';
+    if (overlayRestartButton) {
+      overlayRestartButton.hidden = false;
+    }
+    pauseButton.innerHTML = '<i class="bi bi-play-fill" aria-hidden="true"></i><span class="hud-btn-text">Continuar</span>';
     pauseButton.setAttribute("aria-label", "Reanudar juego");
   }
 
@@ -564,7 +602,10 @@ class GalagaScene extends Phaser.Scene {
     this.physics.world.resume();
     this.isPlaying = true;
     overlay.classList.add("is-hidden");
-    pauseButton.innerHTML = '<i class="bi bi-pause-fill" aria-hidden="true"></i><span>Pausar</span>';
+    if (overlayRestartButton) {
+      overlayRestartButton.hidden = true;
+    }
+    pauseButton.innerHTML = '<i class="bi bi-pause-fill" aria-hidden="true"></i><span class="hud-btn-text">Pausar</span>';
     pauseButton.setAttribute("aria-label", "Pausar juego");
   }
 
@@ -576,15 +617,24 @@ class GalagaScene extends Phaser.Scene {
     waveValue.textContent = "01";
     livesValue.textContent = "♥ ♥ ♥";
     livesValue.setAttribute("aria-label", "3 vidas");
-    touchState.left = false;
-    touchState.right = false;
+    touchState.horizontal = 0;
+    touchState.vertical = 0;
     touchState.fire = false;
+    virtualJoystick.classList.remove("is-left", "is-right", "is-up", "is-down");
     pauseButton.hidden = true;
+    pauseButton.innerHTML = '<i class="bi bi-pause-fill" aria-hidden="true"></i><span class="hud-btn-text">Pausar</span>';
+    pauseButton.setAttribute("aria-label", "Pausar juego");
+    if (overlayRestartButton) {
+      overlayRestartButton.hidden = true;
+    }
     overlay.classList.add("is-hidden");
     overlayEyebrow.textContent = "PILOTO, TE NECESITAMOS";
     overlayTitle.textContent = "¿Listo para despegar?";
     overlayMessage.textContent = "Muévete, dispara y protege la galaxia de la invasión.";
     startButton.innerHTML = '<i class="bi bi-play-fill me-2" aria-hidden="true"></i>Iniciar partida';
+    this.isPausedGame = false;
+    this.awaitingNextWave = false;
+    this.clearBossDisplay();
     this.scene.restart();
     this.events.once("create", () => {
       this.isPlaying = true;
@@ -593,13 +643,23 @@ class GalagaScene extends Phaser.Scene {
       pauseButton.hidden = false;
     });
   }
+
+  // Reinicia la partida desde el primer sector restableciendo física, estado y oleadas.
+  restartGame() {
+    if (this.isPausedGame) {
+      this.physics.world.resume();
+      this.isPausedGame = false;
+    }
+    this.clearBossDisplay();
+    this.startGame();
+  }
 }
 
 // Configura el lienzo escalable de Phaser y vincula los botones de la página.
 const game = new Phaser.Game({
   type: Phaser.AUTO,
-  width: 800,
-  height: 600,
+  width: getGameWidth(),
+  height: GAME_HEIGHT,
   parent: "game-container",
   backgroundColor: "#080b1b",
   scale: {
@@ -613,7 +673,30 @@ const game = new Phaser.Game({
   scene: [GalagaScene]
 });
 
+// Ajusta la proporción del área de juego si la ventana cambia entre móvil y computador.
+desktopLayout.addEventListener("change", (event) => {
+  const width = event.matches ? DESKTOP_GAME_WIDTH : MOBILE_GAME_WIDTH;
+  const scene = game.scene.getScene("galaga");
+  const widthRatio = width / scene.scale.width;
+  game.scale.setGameSize(width, GAME_HEIGHT);
+  scene.physics.world.setBounds(0, 0, width, GAME_HEIGHT);
+  if (scene.player?.active) {
+    scene.player.x = Phaser.Math.Clamp(scene.player.x * widthRatio, 32, width - 32);
+  }
+  scene.stars?.forEach((star) => { star.x *= widthRatio; });
+  [scene.bullets, scene.enemyBullets, scene.enemies].forEach((group) => {
+    group?.getChildren().forEach((entity) => {
+      entity.x *= widthRatio;
+      const baseX = entity.getData("baseX");
+      if (typeof baseX === "number") {
+        entity.setData("baseX", baseX * widthRatio);
+      }
+    });
+  });
+});
+
 startButton.addEventListener("click", () => {
+  startButton.blur();
   const scene = game.scene.getScene("galaga");
   if (scene.isPausedGame) {
     scene.resumeGame();
@@ -626,10 +709,27 @@ startButton.addEventListener("click", () => {
 
 // Permite pausar o reanudar con el botón visible en el marcador.
 pauseButton.addEventListener("click", () => {
+  pauseButton.blur();
   game.scene.getScene("galaga").togglePause();
 });
 
-// Mantiene los controles táctiles activos hasta que se suelta el dedo o el botón pierde el foco.
+// Permite reiniciar la partida desde el marcador en cualquier momento.
+if (restartButton) {
+  restartButton.addEventListener("click", () => {
+    restartButton.blur();
+    game.scene.getScene("galaga").restartGame();
+  });
+}
+
+// Permite reiniciar la partida desde el panel de pausa.
+if (overlayRestartButton) {
+  overlayRestartButton.addEventListener("click", () => {
+    overlayRestartButton.blur();
+    game.scene.getScene("galaga").restartGame();
+  });
+}
+
+// Mantiene el disparo táctil activo hasta que se suelta el dedo o el botón pierde el foco.
 document.querySelectorAll("[data-control]").forEach((button) => {
   const control = button.dataset.control;
   const release = () => {
@@ -646,6 +746,50 @@ document.querySelectorAll("[data-control]").forEach((button) => {
   button.addEventListener("pointercancel", release);
   button.addEventListener("lostpointercapture", release);
 });
+
+// Traduce el desplazamiento del joystick en movimiento horizontal y vertical.
+let joystickPointerId = null;
+const resetJoystick = () => {
+  joystickPointerId = null;
+  touchState.horizontal = 0;
+  touchState.vertical = 0;
+  virtualJoystick.classList.remove("is-left", "is-right", "is-up", "is-down");
+};
+const moveWithJoystick = (event) => {
+  const bounds = virtualJoystick.getBoundingClientRect();
+  const offsetX = event.clientX - (bounds.left + bounds.width / 2);
+  const offsetY = event.clientY - (bounds.top + bounds.height / 2);
+  const maxOffset = bounds.width * 0.32;
+  const deadZone = 0.18;
+  const getAxis = (offset) => {
+    const normalized = Phaser.Math.Clamp(offset / maxOffset, -1, 1);
+    return Math.abs(normalized) < deadZone
+      ? 0
+      : Math.sign(normalized) * (Math.abs(normalized) - deadZone) / (1 - deadZone);
+  };
+  touchState.horizontal = getAxis(offsetX);
+  touchState.vertical = getAxis(offsetY);
+  virtualJoystick.classList.toggle("is-left", touchState.horizontal < 0);
+  virtualJoystick.classList.toggle("is-right", touchState.horizontal > 0);
+  virtualJoystick.classList.toggle("is-up", touchState.vertical < 0);
+  virtualJoystick.classList.toggle("is-down", touchState.vertical > 0);
+};
+
+virtualJoystick.addEventListener("pointerdown", (event) => {
+  event.preventDefault();
+  joystickPointerId = event.pointerId;
+  virtualJoystick.setPointerCapture(event.pointerId);
+  moveWithJoystick(event);
+});
+virtualJoystick.addEventListener("pointermove", (event) => {
+  if (event.pointerId === joystickPointerId) {
+    moveWithJoystick(event);
+  }
+});
+virtualJoystick.addEventListener("pointerup", resetJoystick);
+virtualJoystick.addEventListener("pointercancel", resetJoystick);
+virtualJoystick.addEventListener("lostpointercapture", resetJoystick);
+window.addEventListener("blur", resetJoystick);
 
 // Comparte el enlace con el menú del dispositivo o lo copia si la API nativa no está disponible.
 document.querySelector("#share-button").addEventListener("click", async () => {

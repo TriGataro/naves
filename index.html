@@ -47,9 +47,14 @@
               <div class="hud-item"><span class="hud-label">RÉCORD</span><strong id="best-value">00000</strong></div>
               <div class="hud-item"><span class="hud-label">OLEADA</span><strong id="wave-value">01</strong></div>
               <div class="hud-item lives-item"><span class="hud-label">VIDAS</span><strong id="lives-value" aria-label="3 vidas">♥ ♥ ♥</strong></div>
-              <button class="pause-button" id="pause-button" type="button" aria-label="Pausar juego" hidden>
-                <i class="bi bi-pause-fill" aria-hidden="true"></i><span>Pausar</span>
-              </button>
+              <div class="hud-actions">
+                <button class="hud-btn pause-button" id="pause-button" type="button" aria-label="Pausar juego" hidden>
+                  <i class="bi bi-pause-fill" aria-hidden="true"></i><span class="hud-btn-text">Pausar</span>
+                </button>
+                <button class="hud-btn restart-button" id="restart-button" type="button" aria-label="Reiniciar juego">
+                  <i class="bi bi-arrow-clockwise" aria-hidden="true"></i><span class="hud-btn-text">Reiniciar</span>
+                </button>
+              </div>
             </div>
 
             <div class="canvas-wrap">
@@ -60,9 +65,14 @@
                   <p class="eyebrow mb-2" id="overlay-eyebrow">PILOTO, TE NECESITAMOS</p>
                   <h2 id="overlay-title">¿Listo para despegar?</h2>
                   <p id="overlay-message">Muévete, dispara y protege la galaxia de la invasión.</p>
-                  <button class="btn btn-launch" id="start-button" type="button">
-                    <i class="bi bi-play-fill me-2" aria-hidden="true"></i>Iniciar partida
-                  </button>
+                  <div class="overlay-actions d-flex flex-wrap justify-content-center gap-2">
+                    <button class="btn btn-launch" id="start-button" type="button">
+                      <i class="bi bi-play-fill me-2" aria-hidden="true"></i>Iniciar partida
+                    </button>
+                    <button class="btn btn-overlay-restart" id="overlay-restart-button" type="button" hidden>
+                      <i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>Reiniciar partida
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -70,13 +80,20 @@
           </div>
 
           <div class="controls-row d-flex flex-wrap justify-content-between align-items-center gap-3 mt-3">
-            <p class="controls-hint mb-0"><span class="keycap">←</span>/<span class="keycap">A</span> <span class="keycap">→</span>/<span class="keycap">D</span> mover <span class="hint-divider">·</span> <span class="keycap">ESPACIO</span> disparar <span class="hint-divider">·</span> <span class="keycap">P</span> pausar</p>
-            <p class="controls-hint mb-0"><i class="bi bi-phone me-1" aria-hidden="true"></i> También puedes jugar en tu celular</p>
+            <p class="controls-hint controls-keyboard mb-0"><span class="keycap">W</span><span class="keycap">A</span><span class="keycap">S</span><span class="keycap">D</span> / <span class="keycap">↑</span><span class="keycap">↓</span><span class="keycap">←</span><span class="keycap">→</span> mover <span class="hint-divider">·</span> <span class="keycap">ESPACIO</span> disparar <span class="hint-divider">·</span> <span class="keycap">P</span> pausar <span class="hint-divider">·</span> <span class="keycap">R</span> reiniciar</p>
+            <p class="controls-hint controls-touch-hint mb-0"><i class="bi bi-phone me-1" aria-hidden="true"></i> Usa el joystick para moverte en todas las direcciones y dispara con el botón</p>
           </div>
           <div class="touch-controls" aria-label="Controles táctiles">
-            <button class="touch-button" type="button" data-control="left" aria-label="Mover a la izquierda"><i class="bi bi-arrow-left" aria-hidden="true"></i></button>
+            <button class="virtual-joystick" id="virtual-joystick" type="button" aria-label="Joystick virtual: arrastra en cualquier dirección para mover la nave">
+              <span class="joystick-track" aria-hidden="true">
+                <i class="bi bi-arrow-up joystick-arrow joystick-arrow-up"></i>
+                <i class="bi bi-arrow-down joystick-arrow joystick-arrow-down"></i>
+                <i class="bi bi-arrow-left joystick-arrow joystick-arrow-left"></i>
+                <i class="bi bi-arrow-right joystick-arrow joystick-arrow-right"></i>
+                <span class="joystick-knob"></span>
+              </span>
+            </button>
             <button class="touch-button touch-fire" type="button" data-control="fire" aria-label="Disparar"><i class="bi bi-bullseye" aria-hidden="true"></i><span>DISPARAR</span></button>
-            <button class="touch-button" type="button" data-control="right" aria-label="Mover a la derecha"><i class="bi bi-arrow-right" aria-hidden="true"></i></button>
           </div>
         </section>
       </main>

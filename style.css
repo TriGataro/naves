@@ -89,7 +89,7 @@ main {
 }
 
 .game-panel {
-  max-width: 980px;
+  max-width: 1100px;
 }
 
 .game-heading h1 {
@@ -123,10 +123,11 @@ main {
 .hud {
   min-height: 70px;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, 1fr) auto;
   align-items: center;
   border-bottom: 1px solid rgb(255 255 255 / 7%);
   background: #0c1022;
+  padding: 0 0.75rem;
 }
 
 .hud-item {
@@ -149,8 +150,14 @@ main {
   letter-spacing: 0.12em;
 }
 
-.pause-button {
-  justify-self: center;
+.hud-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.hud-btn {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
@@ -161,16 +168,28 @@ main {
   padding: 0.35rem 0.55rem;
   font-size: 0.76rem;
   font-weight: 700;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease, transform 160ms ease;
+  white-space: nowrap;
 }
 
-.pause-button:hover,
-.pause-button:focus-visible {
+.hud-btn:hover,
+.hud-btn:focus-visible {
   border-color: var(--cyan);
   background: rgb(98 234 255 / 9%);
+  color: var(--cyan);
 }
 
-.pause-button[hidden] {
-  display: none;
+.restart-button:hover,
+.restart-button:focus-visible {
+  border-color: var(--pink);
+  background: rgb(255 110 174 / 9%);
+  color: var(--pink);
+}
+
+.hud-btn[hidden] {
+  display: none !important;
 }
 
 .canvas-wrap {
@@ -183,6 +202,12 @@ main {
 #game-container {
   width: 100%;
   aspect-ratio: 4 / 3;
+}
+
+@media (min-width: 576px) {
+  #game-container {
+    aspect-ratio: 3 / 2;
+  }
 }
 
 #game-container canvas {
@@ -254,6 +279,28 @@ main {
   transform: translateY(-1px);
 }
 
+.btn-overlay-restart {
+  border: 1px solid var(--panel-edge);
+  border-radius: 11px;
+  background: #171d36;
+  color: var(--text);
+  font-weight: 700;
+  padding: 0.78rem 1.2rem;
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.btn-overlay-restart:hover,
+.btn-overlay-restart:focus-visible {
+  border-color: var(--pink);
+  background: rgb(255 110 174 / 12%);
+  color: var(--text);
+  transform: translateY(-1px);
+}
+
+.btn-overlay-restart[hidden] {
+  display: none !important;
+}
+
 .storage-notice {
   min-height: 0;
   padding: 0 0.9rem;
@@ -285,6 +332,10 @@ main {
 }
 
 .touch-controls {
+  display: none;
+}
+
+.controls-touch-hint {
   display: none;
 }
 
@@ -332,8 +383,52 @@ main {
     border-radius: 13px;
   }
 
+  .game-overlay {
+    padding: 0.6rem;
+  }
+
+  .overlay-card {
+    width: 100%;
+    max-width: 300px;
+  }
+
+  .overlay-icon {
+    width: 42px;
+    height: 42px;
+    margin-bottom: 0.45rem;
+    border-radius: 14px;
+    font-size: 1.2rem;
+  }
+
+  .overlay-card .eyebrow {
+    margin-bottom: 0.3rem !important;
+    font-size: 0.56rem;
+  }
+
+  .overlay-card h2 {
+    margin-bottom: 0.35rem;
+    font-size: 1.15rem;
+  }
+
+  .overlay-card p:not(.eyebrow) {
+    margin-bottom: 0.65rem;
+    font-size: 0.76rem;
+    line-height: 1.35;
+  }
+
+  .btn-launch,
+  .btn-overlay-restart {
+    width: 100%;
+    max-width: 250px;
+    min-height: 46px;
+    padding: 0.65rem 0.8rem;
+    font-size: 0.95rem;
+  }
+
   .hud {
     min-height: 60px;
+    padding: 0 0.35rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
   }
 
   .hud-label {
@@ -348,10 +443,15 @@ main {
     font-size: 0.7rem;
   }
 
-  .pause-button {
-    gap: 0.1rem;
-    padding: 0.3rem;
-    font-size: 0.65rem;
+  .hud-actions {
+    gap: 0.25rem;
+  }
+
+  .hud-btn {
+    gap: 0.15rem;
+    padding: 0.3rem 0.4rem;
+    font-size: 0.66rem;
+    border-radius: 7px;
   }
 
   .controls-row {
@@ -359,11 +459,20 @@ main {
     text-align: center;
   }
 
+  .controls-keyboard {
+    display: none;
+  }
+
+  .controls-touch-hint {
+    display: block;
+  }
+
   .touch-controls {
     display: flex;
-    justify-content: center;
-    gap: 0.9rem;
-    padding: 0.85rem 0 0.2rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.7rem 0 0.2rem;
   }
 
   .touch-button {
@@ -388,17 +497,136 @@ main {
     background: rgb(98 234 255 / 14%);
   }
 
+  .virtual-joystick {
+    width: 108px;
+    height: 108px;
+    flex: 0 0 108px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: var(--muted);
+    touch-action: none;
+    user-select: none;
+  }
+
+  .joystick-track {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: block;
+    border: 1px solid #39415d;
+    border-radius: 50%;
+    background: radial-gradient(circle, #151b32 0, #10152a 70%);
+    box-shadow: inset 0 0 18px rgb(98 234 255 / 6%);
+  }
+
+  .joystick-arrow {
+    position: absolute;
+    top: 50%;
+    color: #74809f;
+    font-size: 0.75rem;
+    transform: translateY(-50%);
+  }
+
+  .joystick-arrow-left {
+    top: 50%;
+    left: 0.55rem;
+    transform: translateY(-50%);
+  }
+
+  .joystick-arrow-right {
+    top: 50%;
+    right: 0.55rem;
+    transform: translateY(-50%);
+  }
+
+  .joystick-arrow-up {
+    top: 0.55rem;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .joystick-arrow-down {
+    top: auto;
+    bottom: 0.55rem;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  .joystick-knob {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 44px;
+    height: 44px;
+    border: 1px solid rgb(98 234 255 / 55%);
+    border-radius: 50%;
+    background: linear-gradient(145deg, #253653, #17223b);
+    box-shadow: 0 0 16px rgb(98 234 255 / 14%);
+    transform: translate(-50%, -50%);
+    transition: top 100ms ease, left 100ms ease, border-color 100ms ease, background 100ms ease;
+  }
+
+  .virtual-joystick.is-left .joystick-knob {
+    left: 25%;
+    border-color: var(--cyan);
+    background: #1c3446;
+  }
+
+  .virtual-joystick.is-right .joystick-knob {
+    left: 75%;
+    border-color: var(--cyan);
+    background: #1c3446;
+  }
+
+  .virtual-joystick.is-up .joystick-knob {
+    top: 25%;
+    border-color: var(--cyan);
+    background: #1c3446;
+  }
+
+  .virtual-joystick.is-down .joystick-knob {
+    top: 75%;
+    border-color: var(--cyan);
+    background: #1c3446;
+  }
+
+  .virtual-joystick:focus-visible {
+    outline: 2px solid var(--cyan);
+    outline-offset: 3px;
+  }
+
   .touch-fire {
-    min-width: 112px;
+    width: 88px;
+    min-width: 88px;
+    height: 88px;
+    min-height: 88px;
+    flex-direction: column;
+    gap: 0.2rem;
+    border-radius: 50%;
     border-color: rgb(255 110 174 / 45%);
     color: var(--pink);
-    font-size: 0.95rem;
+    font-size: 1.3rem;
     font-weight: 800;
   }
 
   .touch-fire span {
     font-size: 0.66rem;
     letter-spacing: 0.08em;
+  }
+}
+
+@media (max-width: 440px) {
+  .hud-btn .hud-btn-text {
+    display: none;
+  }
+
+  .hud-btn {
+    padding: 0.32rem 0.45rem;
+    font-size: 0.82rem;
   }
 }
 
