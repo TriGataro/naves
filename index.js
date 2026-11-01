@@ -11,6 +11,11 @@ const startButton = document.querySelector("#start-button");
 const pauseButton = document.querySelector("#pause-button");
 const restartButton = document.querySelector("#restart-button");
 const overlayRestartButton = document.querySelector("#overlay-restart-button");
+const bombButton = document.querySelector("#bomb-button");
+const touchBombButton = document.querySelector("#touch-bomb-button");
+const bombValue = document.querySelector("#bomb-value");
+const touchBombValue = document.querySelector("#touch-bomb-value");
+const weaponValue = document.querySelector("#weapon-value");
 const storageNotice = document.querySelector("#storage-notice");
 const virtualJoystick = document.querySelector("#virtual-joystick");
 
@@ -18,6 +23,7 @@ const STORAGE_KEY = "galaga-best-score";
 const GAME_HEIGHT = 600;
 const MOBILE_GAME_WIDTH = 800;
 const DESKTOP_GAME_WIDTH = 900;
+const BACKGROUND_PALETTES = ["#0b1024", "#101827", "#171329", "#0b1c25", "#1c1725"];
 const desktopLayout = window.matchMedia("(min-width: 576px)");
 const getGameWidth = () => desktopLayout.matches ? DESKTOP_GAME_WIDTH : MOBILE_GAME_WIDTH;
 const touchState = { horizontal: 0, vertical: 0, fire: false };
@@ -35,6 +41,16 @@ class GalagaScene extends Phaser.Scene {
   constructor() {
     super("galaga");
     this.audioContext = null;
+    this.bossSpeedBonus = 0;
+  }
+
+  // Mantiene sincronizado el color de fondo de la cámara y el lienzo del juego.
+  setArenaBackground(color) {
+    this.cameras.main.setBackgroundColor(color);
+    this.game.config.backgroundColor = color;
+    this.game.canvas.style.backgroundColor = color;
+    const parsedColor = Phaser.Display.Color.HexStringToColor(color);
+    this.game.renderer.config.backgroundColor.setTo(parsedColor.red, parsedColor.green, parsedColor.blue, 255);
   }
 
   // Prepara el audio después de una interacción del jugador para respetar las políticas del navegador.
@@ -94,12 +110,18 @@ class GalagaScene extends Phaser.Scene {
     this.player.setDepth(2);
     this.bullets = this.physics.add.group({ allowGravity: false });
     this.enemyBullets = this.physics.add.group({ allowGravity: false });
+    this.bombs = this.physics.add.group({ allowGravity: false });
     this.enemies = this.physics.add.group({ allowGravity: false, immovable: true });
+    this.rewards = this.physics.add.group({ allowGravity: false });
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.keys = this.input.keyboard.addKeys("W,A,S,D,SPACE,P,R");
+    this.keys = this.input.keyboard.addKeys("W,A,S,D,SPACE,P,R,B");
     this.physics.world.setBounds(0, 0, this.scale.width, GAME_HEIGHT);
     this.score = 0;
     this.lives = 3;
+    this.weaponLevel = 1;
+    this.bombCount = 0;
+    this.backgroundPaletteIndex = 0;
+    this.setArenaBackground(BACKGROUND_PALETTES[this.backgroundPaletteIndex]);
     this.wave = 1;
     this.isPlaying = false;
     this.lastShotAt = 0;
@@ -112,8 +134,12 @@ class GalagaScene extends Phaser.Scene {
     this.createWave();
 
     this.physics.add.overlap(this.bullets, this.enemies, this.hitEnemy, undefined, this);
+    this.physics.add.overlap(this.bombs, this.enemies, this.hitBombEnemy, undefined, this);
     this.physics.add.overlap(this.enemyBullets, this.player, this.hitPlayer, undefined, this);
     this.physics.add.overlap(this.enemies, this.player, this.hitPlayer, undefined, this);
+    this.physics.add.overlap(this.rewards, this.player, this.collectReward, undefined, this);
+    this.updatePowerupHud();
+    this.updateLivesHud();
   }
 
   // Dibuja las naves y los proyectiles como texturas para no depender de imágenes externas.
@@ -230,6 +256,54 @@ class GalagaScene extends Phaser.Scene {
     graphics.fillStyle(0xffe1a3, 1);
     graphics.fillRoundedRect(3, 2, 4, 16, 2);
     graphics.generateTexture("enemy-bullet", 10, 21);
+    graphics.clear();
+
+    graphics.fillStyle(0x15213a, 0.96);
+    graphics.fillCircle(20, 20, 19);
+    graphics.lineStyle(2, 0x62eaff, 0.9);
+    graphics.strokeCircle(20, 20, 18);
+    graphics.fillStyle(0xb9f8ff, 1);
+    graphics.fillRoundedRect(11, 9, 6, 20, 3);
+    graphics.fillRoundedRect(23, 9, 6, 20, 3);
+    graphics.generateTexture("reward-weapon", 40, 40);
+    graphics.clear();
+
+    graphics.fillStyle(0x15213a, 0.96);
+    graphics.fillCircle(20, 20, 19);
+    graphics.lineStyle(2, 0xffc46e, 0.9);
+    graphics.strokeCircle(20, 20, 18);
+    graphics.fillStyle(0xff9a52, 1);
+    graphics.fillCircle(19, 23, 9);
+    graphics.lineStyle(3, 0xffe4a3, 1);
+    graphics.lineBetween(23, 14, 29, 8);
+    graphics.fillStyle(0xffe4a3, 1);
+    graphics.fillCircle(30, 7, 3);
+    graphics.generateTexture("reward-bomb", 40, 40);
+    graphics.clear();
+    graphics.fillStyle(0x3a1c2a, 1);
+    graphics.fillCircle(12, 12, 11);
+    graphics.lineStyle(2, 0xffbd69, 1);
+    graphics.strokeCircle(12, 12, 10);
+    graphics.fillStyle(0xff8e43, 1);
+    graphics.fillCircle(11, 14, 5);
+    graphics.lineStyle(2, 0xffedb5, 1);
+    graphics.lineBetween(14, 9, 18, 5);
+    graphics.fillStyle(0xffedb5, 1);
+    graphics.fillCircle(19, 4, 2);
+    graphics.generateTexture("player-bomb", 24, 24);
+    graphics.clear();
+
+    graphics.fillStyle(0x15213a, 0.96);
+    graphics.fillCircle(20, 20, 19);
+    graphics.lineStyle(2, 0xff6eae, 0.9);
+    graphics.strokeCircle(20, 20, 18);
+    graphics.fillStyle(0xff6eae, 1);
+    graphics.fillPoints([
+      { x: 20, y: 31 }, { x: 7, y: 20 }, { x: 7, y: 14 }, { x: 11, y: 10 },
+      { x: 16, y: 10 }, { x: 20, y: 15 }, { x: 24, y: 10 }, { x: 29, y: 10 },
+      { x: 33, y: 14 }, { x: 33, y: 20 }
+    ], true);
+    graphics.generateTexture("reward-life", 40, 40);
     graphics.destroy();
   }
 
@@ -256,6 +330,7 @@ class GalagaScene extends Phaser.Scene {
     this.formationDirection = 1;
     if (this.wave % 4 === 0) {
       const boss = this.enemies.create(this.scale.width / 2, 120, "enemy-boss");
+      this.maybeHideReward(boss);
       boss.setDepth(2);
       boss.setScale(1.65);
       boss.body.setAllowGravity(false);
@@ -281,6 +356,7 @@ class GalagaScene extends Phaser.Scene {
         enemy.setDepth(1);
         enemy.body.setAllowGravity(false);
         enemy.setData("baseX", enemy.x);
+        this.maybeHideReward(enemy);
       }
     }
   }
@@ -311,16 +387,24 @@ class GalagaScene extends Phaser.Scene {
       }
     });
 
-    [this.bullets, this.enemyBullets].forEach((group) => {
+    [this.bullets, this.enemyBullets, this.bombs].forEach((group) => {
       group.getChildren().forEach((bullet) => {
         if (bullet && bullet.active && (bullet.y < -20 || bullet.y > GAME_HEIGHT + 20)) {
           bullet.destroy();
         }
       });
     });
+    this.rewards.getChildren().forEach((reward) => {
+      if (reward && reward.active && (reward.y > GAME_HEIGHT + 24 || this.time.now > reward.getData("expiresAt"))) {
+        reward.destroy();
+      }
+    });
 
     if (!this.isPlaying || !this.player.active) {
       return;
+    }
+    if (Phaser.Input.Keyboard.JustDown(this.keys.B)) {
+      this.launchBomb();
     }
 
     const horizontalDirection = Phaser.Math.Clamp(
@@ -386,12 +470,15 @@ class GalagaScene extends Phaser.Scene {
     }
     this.lastShotAt = this.time.now;
     this.playSound(720, 260, 0.09, "square", 0.025);
-    const bullet = this.bullets.create(this.player.x, this.player.y - 22, "player-bullet");
-    bullet.setDepth(1);
-    bullet.body.setAllowGravity(false);
-    bullet.setVelocityY(-540);
-    bullet.setCollideWorldBounds(false);
-    bullet.setData("expiresAt", this.time.now + 1500);
+    const offsets = this.weaponLevel > 1 ? [-13, 13] : [0];
+    offsets.forEach((offset) => {
+      const bullet = this.bullets.create(this.player.x + offset, this.player.y - 22, "player-bullet");
+      bullet.setDepth(1);
+      bullet.body.setAllowGravity(false);
+      bullet.setVelocityY(-540);
+      bullet.setCollideWorldBounds(false);
+      bullet.setData("expiresAt", this.time.now + 1500);
+    });
   }
 
   // Escoge un invasor vivo y dispara hacia la zona de la nave del jugador.
@@ -412,6 +499,192 @@ class GalagaScene extends Phaser.Scene {
       bullet.setData("expiresAt", this.time.now + 3000);
     });
     this.nextEnemyShotAt = this.time.now + this.getEnemyFireDelay();
+  }
+
+  // Oculta premios al azar para que solo una pequeña parte de los enemigos los suelte.
+  maybeHideReward(enemy) {
+    if (Math.random() < 0.05) {
+      const rewards = ["weapon", "bomb", "life"];
+      enemy.setData("rewardType", Phaser.Utils.Array.GetRandom(rewards));
+    }
+  }
+
+  // Deja caer el premio oculto del enemigo cuando este es destruido.
+  dropReward(enemy) {
+    const rewardType = enemy.getData("rewardType");
+    if (!rewardType) {
+      return;
+    }
+
+    const reward = this.rewards.create(enemy.x, enemy.y, `reward-${rewardType}`);
+    reward.setDepth(3);
+    reward.body.setAllowGravity(false);
+    reward.setVelocityY(58);
+    reward.setData("rewardType", rewardType);
+    reward.setData("expiresAt", this.time.now + 10000);
+  }
+
+  // Dibuja una explosión breve para impactos y enemigos destruidos.
+  createExplosion(x, y, color = 0xff9a52, radius = 30) {
+    const explosion = this.add.graphics().setPosition(x, y).setDepth(5);
+    explosion.fillStyle(0xffe6a3, 0.95);
+    explosion.fillCircle(0, 0, radius * 0.2);
+    explosion.fillStyle(color, 0.85);
+    explosion.fillCircle(0, 0, radius * 0.55);
+    explosion.lineStyle(3, 0xfff4d6, 0.9);
+    for (let ray = 0; ray < 8; ray += 1) {
+      const angle = (Math.PI * 2 * ray) / 8;
+      explosion.lineBetween(
+        Math.cos(angle) * radius * 0.55,
+        Math.sin(angle) * radius * 0.55,
+        Math.cos(angle) * radius,
+        Math.sin(angle) * radius
+      );
+    }
+    this.tweens.add({
+      targets: explosion,
+      scaleX: 1.65,
+      scaleY: 1.65,
+      alpha: 0,
+      duration: 300,
+      ease: "Cubic.easeOut",
+      onComplete: () => explosion.destroy()
+    });
+  }
+
+  // Elimina un enemigo normal, suelta su premio y completa la oleada si era el último.
+  destroyEnemy(enemy, completeWave = true) {
+    if (!enemy.active || enemy.getData("isBoss")) {
+      return;
+    }
+    this.dropReward(enemy);
+    this.createExplosion(enemy.x, enemy.y, 0xffa34f, 20);
+    enemy.destroy();
+    this.addScore(100);
+    if (completeWave && this.enemies.countActive() === 0) {
+      this.finishWave(false);
+    }
+  }
+
+  // Actualiza los contadores de armas y bombas y el estado de sus botones.
+  updatePowerupHud() {
+    weaponValue.textContent = this.weaponLevel > 1 ? "×2" : "×1";
+    weaponValue.setAttribute("aria-label", this.weaponLevel > 1 ? "Disparo doble" : "Disparo simple");
+    bombValue.textContent = `Bomba ×${this.bombCount}`;
+    touchBombValue.textContent = `×${this.bombCount}`;
+    bombButton.setAttribute("aria-label", `Usar bomba; ${this.bombCount} disponibles`);
+    touchBombButton.setAttribute("aria-label", `Usar bomba; ${this.bombCount} disponibles`);
+    bombButton.disabled = this.bombCount === 0;
+    touchBombButton.disabled = this.bombCount === 0;
+  }
+
+  // Muestra todas las vidas acumuladas, incluso si se supera el número inicial.
+  updateLivesHud() {
+    livesValue.textContent = Array.from({ length: this.lives }, () => "♥").join(" ");
+    livesValue.setAttribute("aria-label", `${this.lives} vidas`);
+  }
+
+  // Recoge premios para mejorar el arma, guardar bombas o añadir corazones.
+  collectReward(first, second) {
+    const reward = [first, second].find((object) => ["weapon", "bomb", "life"].includes(object.getData("rewardType")));
+    if (!reward || !reward.active || !this.isPlaying) {
+      return;
+    }
+    const rewardType = reward.getData("rewardType");
+    reward.destroy();
+    if (rewardType === "weapon") {
+      this.weaponLevel = 2;
+      storageNotice.textContent = "¡Disparo doble activado!";
+      this.playSound(760, 1120, 0.2, "triangle", 0.045);
+    } else if (rewardType === "bomb") {
+      this.bombCount += 1;
+      storageNotice.textContent = "¡Bomba recogida! Pulsa B o el botón de bomba para lanzarla.";
+      this.playSound(300, 720, 0.24, "sawtooth", 0.04);
+    } else if (rewardType === "life") {
+      this.lives += 1;
+      this.updateLivesHud();
+      storageNotice.textContent = "¡Vida extra!";
+      this.playSound(520, 1040, 0.26, "sine", 0.045);
+    }
+    this.updatePowerupHud();
+  }
+
+  // Lanza una bomba que detonará cuando alcance un enemigo.
+  launchBomb() {
+    if (!this.isPlaying || this.bombCount === 0) {
+      return;
+    }
+
+    this.bombCount -= 1;
+    this.updatePowerupHud();
+    this.playSound(320, 80, 0.48, "sawtooth", 0.07);
+    const bomb = this.bombs.create(this.player.x, this.player.y - 36, "player-bomb");
+    bomb.setDepth(4);
+    bomb.body.setAllowGravity(false);
+    bomb.setVelocityY(-300);
+    bomb.setCollideWorldBounds(false);
+    bomb.setData("expiresAt", this.time.now + 2500);
+  }
+
+  // Detona la bomba al impactar y afecta hasta cuatro enemigos cercanos al punto de choque.
+  hitBombEnemy(bomb, enemy) {
+    if (!bomb.active || !enemy.active) {
+      return;
+    }
+
+    const impactX = enemy.x;
+    const impactY = enemy.y;
+    bomb.destroy();
+    this.createBombExplosion(impactX, impactY);
+    this.playSound(320, 80, 0.48, "sawtooth", 0.07);
+
+    if (enemy.getData("isBoss")) {
+      enemy.setData("health", enemy.getData("health") - 3);
+      this.addScore(300);
+      this.createExplosion(enemy.x, enemy.y, 0xc03cff, 54);
+      if (enemy.getData("health") <= 0) {
+        this.defeatBoss(enemy);
+      } else {
+        this.drawBossHealth(enemy);
+      }
+      return;
+    }
+
+    const targets = this.enemies.getChildren()
+      .filter((target) => target.active && !target.getData("isBoss"))
+      .sort((first, second) => {
+        const firstDistance = Math.hypot(first.x - impactX, first.y - impactY);
+        const secondDistance = Math.hypot(second.x - impactX, second.y - impactY);
+        return firstDistance - secondDistance;
+      });
+    const targetCount = Math.min(Phaser.Math.Between(3, 4), targets.length);
+    targets.slice(0, targetCount).forEach((target) => this.destroyEnemy(target, false));
+    if (this.enemies.countActive() === 0) {
+      this.finishWave(false);
+    }
+  }
+
+  // Dibuja una explosión en cruz desde el punto de impacto de la bomba.
+  createBombExplosion(x, y) {
+    const explosion = this.add.graphics().setDepth(4);
+    explosion.setPosition(x, y);
+    explosion.lineStyle(30, 0x62eaff, 0.3);
+    explosion.lineBetween(0, -y, 0, GAME_HEIGHT - y);
+    explosion.lineBetween(-x, 0, this.scale.width - x, 0);
+    explosion.lineStyle(12, 0xffe6a3, 0.95);
+    explosion.lineBetween(0, -y, 0, GAME_HEIGHT - y);
+    explosion.lineBetween(-x, 0, this.scale.width - x, 0);
+    explosion.fillStyle(0xffffff, 0.95);
+    explosion.fillCircle(0, 0, 22);
+    this.tweens.add({
+      targets: explosion,
+      scaleX: 1.08,
+      scaleY: 1.08,
+      alpha: 0,
+      duration: 420,
+      ease: "Cubic.easeOut",
+      onComplete: () => explosion.destroy()
+    });
   }
 
   // Dibuja la barra de vida del jefe encima de su nave.
@@ -441,17 +714,17 @@ class GalagaScene extends Phaser.Scene {
 
   // Aumenta la velocidad de la formación con cada oleada y evita una aceleración ilimitada.
   getFormationSpeed() {
-    return Math.min(14 + (this.wave - 1) * 9, 86);
+    return Math.min(14 + (this.wave - 1) * 9 + this.bossSpeedBonus, 110);
   }
 
   // Hace que los proyectiles enemigos también se aceleren gradualmente entre oleadas.
   getEnemyBulletSpeed() {
-    return Math.min(120 + (this.wave - 1) * 18, 340);
+    return Math.min(120 + (this.wave - 1) * 18 + this.bossSpeedBonus * 1.5, 380);
   }
 
   // Reduce gradualmente el tiempo entre disparos enemigos conforme avanzan las oleadas.
   getEnemyFireDelay() {
-    return Math.max(650, 1550 - (this.wave - 1) * 120);
+    return Math.max(550, 1550 - (this.wave - 1) * 120 - this.bossSpeedBonus * 6);
   }
 
   // Aplica daño a los enemigos, actualiza puntos y completa el nivel al vaciar la formación.
@@ -463,19 +736,25 @@ class GalagaScene extends Phaser.Scene {
       enemy.setData("health", health);
       this.addScore(100);
       if (health <= 0) {
-        enemy.destroy();
-        this.clearBossDisplay();
-        this.addScore(1500);
-        this.finishWave(true);
+        this.defeatBoss(enemy);
       }
       return;
     }
 
-    enemy.destroy();
-    this.addScore(100);
-    if (this.enemies.countActive() === 0) {
-      this.finishWave(false);
-    }
+    this.destroyEnemy(enemy);
+  }
+
+  // Derrota al jefe, suelta su premio y cambia la paleta del espacio.
+  defeatBoss(boss) {
+    this.dropReward(boss);
+    this.createExplosion(boss.x, boss.y, 0xc03cff, 64);
+    boss.destroy();
+    this.clearBossDisplay();
+    this.addScore(1500);
+    this.bossSpeedBonus += 8;
+    this.backgroundPaletteIndex = (this.backgroundPaletteIndex + 1) % BACKGROUND_PALETTES.length;
+    this.setArenaBackground(BACKGROUND_PALETTES[this.backgroundPaletteIndex]);
+    this.finishWave(true);
   }
 
   // Suma puntos, actualiza el récord y lo guarda localmente cuando cambia.
@@ -520,15 +799,30 @@ class GalagaScene extends Phaser.Scene {
       return;
     }
     const collidedObject = first === this.player ? second : first;
-    if (collidedObject !== this.player) {
-      collidedObject.destroy();
+    if (collidedObject !== this.player && collidedObject.getData("isBoss") !== true) {
+      if (typeof collidedObject.getData("baseX") === "number") {
+        this.destroyEnemy(collidedObject, false);
+      } else {
+        collidedObject.destroy();
+      }
     }
     this.playSound(180, 70, 0.28, "sawtooth", 0.055);
+    this.createExplosion(this.player.x, this.player.y, 0xff6eae, 42);
     this.invulnerableUntil = this.time.now + 650;
     this.lives -= 1;
-    livesValue.textContent = `${"♥ ".repeat(this.lives)}${"♡ ".repeat(3 - this.lives)}`.trim();
-    livesValue.setAttribute("aria-label", `${this.lives} vidas`);
+    this.weaponLevel = 1;
+    this.bombCount = 0;
+    this.updateLivesHud();
+    this.updatePowerupHud();
     this.player.setTint(0xff6eae);
+    this.tweens.add({
+      targets: this.player,
+      alpha: 0.25,
+      yoyo: true,
+      repeat: 3,
+      duration: 85,
+      onComplete: () => this.player.setAlpha(1)
+    });
     this.time.delayedCall(180, () => {
       if (this.player.active) {
         this.player.clearTint();
@@ -536,6 +830,8 @@ class GalagaScene extends Phaser.Scene {
     });
     if (this.lives <= 0) {
       this.finishGame();
+    } else if (this.isPlaying && this.enemies.countActive() === 0) {
+      this.finishWave(false);
     }
   }
 
@@ -615,8 +911,13 @@ class GalagaScene extends Phaser.Scene {
     this.playSound(440, 660, 0.2, "triangle", 0.04);
     scoreValue.textContent = "00000";
     waveValue.textContent = "01";
-    livesValue.textContent = "♥ ♥ ♥";
-    livesValue.setAttribute("aria-label", "3 vidas");
+    this.lives = 3;
+    this.weaponLevel = 1;
+    this.bombCount = 0;
+    this.bossSpeedBonus = 0;
+    this.backgroundPaletteIndex = 0;
+    this.updateLivesHud();
+    this.updatePowerupHud();
     touchState.horizontal = 0;
     touchState.vertical = 0;
     touchState.fire = false;
@@ -634,6 +935,7 @@ class GalagaScene extends Phaser.Scene {
     startButton.innerHTML = '<i class="bi bi-play-fill me-2" aria-hidden="true"></i>Iniciar partida';
     this.isPausedGame = false;
     this.awaitingNextWave = false;
+    this.setArenaBackground(BACKGROUND_PALETTES[this.backgroundPaletteIndex]);
     this.clearBossDisplay();
     this.scene.restart();
     this.events.once("create", () => {
@@ -684,7 +986,7 @@ desktopLayout.addEventListener("change", (event) => {
     scene.player.x = Phaser.Math.Clamp(scene.player.x * widthRatio, 32, width - 32);
   }
   scene.stars?.forEach((star) => { star.x *= widthRatio; });
-  [scene.bullets, scene.enemyBullets, scene.enemies].forEach((group) => {
+  [scene.bullets, scene.enemyBullets, scene.bombs, scene.enemies, scene.rewards].forEach((group) => {
     group?.getChildren().forEach((entity) => {
       entity.x *= widthRatio;
       const baseX = entity.getData("baseX");
@@ -711,6 +1013,14 @@ startButton.addEventListener("click", () => {
 pauseButton.addEventListener("click", () => {
   pauseButton.blur();
   game.scene.getScene("galaga").togglePause();
+});
+
+// Permite usar las bombas desde los botones de computador y celular.
+bombButton.addEventListener("click", () => {
+  game.scene.getScene("galaga").launchBomb();
+});
+touchBombButton.addEventListener("click", () => {
+  game.scene.getScene("galaga").launchBomb();
 });
 
 // Permite reiniciar la partida desde el marcador en cualquier momento.

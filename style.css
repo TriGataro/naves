@@ -113,6 +113,7 @@ main {
 }
 
 .game-frame {
+  position: relative;
   overflow: hidden;
   border: 1px solid var(--panel-edge);
   border-radius: 18px;
@@ -123,7 +124,7 @@ main {
 .hud {
   min-height: 70px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr) auto;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
   align-items: center;
   border-bottom: 1px solid rgb(255 255 255 / 7%);
   background: #0c1022;
@@ -145,9 +146,13 @@ main {
 }
 
 .lives-item strong {
+  max-width: 100%;
   color: var(--pink);
   font-size: 0.82rem;
   letter-spacing: 0.12em;
+  line-height: 1.15;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .hud-actions {
@@ -190,6 +195,24 @@ main {
 
 .hud-btn[hidden] {
   display: none !important;
+}
+
+.hud-btn:disabled,
+.touch-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.bomb-button {
+  border-color: rgb(255 196 110 / 40%);
+  color: #ffd18a;
+}
+
+.bomb-button:not(:disabled):hover,
+.bomb-button:not(:disabled):focus-visible {
+  border-color: #ffd18a;
+  background: rgb(255 196 110 / 10%);
+  color: #ffe4b8;
 }
 
 .canvas-wrap {
@@ -357,7 +380,7 @@ main {
   color: var(--cyan);
 }
 
-@media (max-width: 575.98px) {
+@media (max-width: 575.98px), (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
   .brand-icon {
     width: 42px;
     height: 42px;
@@ -428,7 +451,7 @@ main {
   .hud {
     min-height: 60px;
     padding: 0 0.35rem;
-    grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
   }
 
   .hud-label {
@@ -617,6 +640,25 @@ main {
     font-size: 0.66rem;
     letter-spacing: 0.08em;
   }
+
+  .touch-bomb {
+    width: 68px;
+    min-width: 68px;
+    height: 68px;
+    min-height: 68px;
+    flex-direction: column;
+    gap: 0.1rem;
+    border-color: rgb(255 196 110 / 45%);
+    border-radius: 50%;
+    color: #ffd18a;
+    font-size: 1.1rem;
+    font-weight: 800;
+  }
+
+  .touch-bomb span {
+    font-size: 0.55rem;
+    letter-spacing: 0.07em;
+  }
 }
 
 @media (max-width: 440px) {
@@ -627,6 +669,131 @@ main {
   .hud-btn {
     padding: 0.32rem 0.45rem;
     font-size: 0.82rem;
+  }
+
+  #bomb-value {
+    display: none;
+  }
+}
+
+@media (pointer: coarse) and (orientation: landscape) and (max-height: 520px) {
+  body,
+  .page-shell {
+    min-height: 100dvh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  header,
+  footer,
+  .game-heading,
+  .controls-row {
+    display: none !important;
+  }
+
+  main.container {
+    width: 100%;
+    max-width: none;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px !important;
+  }
+
+  .game-panel {
+    width: min(100%, calc((100dvh - 86px) * 1.5));
+    max-width: none;
+    margin: 0 auto;
+  }
+
+  .game-frame {
+    margin-top: 0 !important;
+    border-radius: 10px;
+  }
+
+  .hud {
+    min-height: 46px;
+    padding: 0 0.4rem;
+  }
+
+  .hud-label {
+    font-size: 0.5rem;
+  }
+
+  .hud-item strong {
+    font-size: 0.72rem;
+  }
+
+  .lives-item strong {
+    font-size: 0.62rem;
+  }
+
+  .hud-btn {
+    gap: 0.15rem;
+    padding: 0.28rem 0.38rem;
+    font-size: 0.68rem;
+  }
+
+  .hud-btn .hud-btn-text,
+  .bomb-button i {
+    display: none;
+  }
+
+  #bomb-value {
+    display: inline;
+  }
+
+  .touch-controls {
+    position: fixed;
+    z-index: 5;
+    inset: auto 8px 8px;
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0;
+    pointer-events: none;
+  }
+
+  .touch-controls > * {
+    pointer-events: auto;
+  }
+
+  .virtual-joystick {
+    width: 76px;
+    height: 76px;
+    flex-basis: 76px;
+  }
+
+  .joystick-knob {
+    width: 34px;
+    height: 34px;
+  }
+
+  .touch-fire,
+  .touch-bomb {
+    width: 64px;
+    min-width: 64px;
+    height: 64px;
+    min-height: 64px;
+    font-size: 1rem;
+  }
+
+  .touch-fire span,
+  .touch-bomb span {
+    font-size: 0.5rem;
+  }
+
+  .storage-notice:not(:empty) {
+    position: absolute;
+    z-index: 4;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    padding: 0.2rem 0.4rem;
+    font-size: 0.62rem;
+    text-align: center;
   }
 }
 
