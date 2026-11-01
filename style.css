@@ -12,6 +12,9 @@
 
 * {
   box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 body {
@@ -493,7 +496,7 @@ main {
   .touch-controls {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: 1rem;
     padding: 0.7rem 0 0.2rem;
   }
@@ -524,6 +527,8 @@ main {
     width: 108px;
     height: 108px;
     flex: 0 0 108px;
+    order: 1;
+    margin-right: auto;
     display: grid;
     place-items: center;
     padding: 0;
@@ -627,6 +632,7 @@ main {
     min-width: 88px;
     height: 88px;
     min-height: 88px;
+    order: 3;
     flex-direction: column;
     gap: 0.2rem;
     border-radius: 50%;
@@ -646,6 +652,7 @@ main {
     min-width: 68px;
     height: 68px;
     min-height: 68px;
+    order: 2;
     flex-direction: column;
     gap: 0.1rem;
     border-color: rgb(255 196 110 / 45%);

@@ -1101,6 +1101,17 @@ virtualJoystick.addEventListener("pointercancel", resetJoystick);
 virtualJoystick.addEventListener("lostpointercapture", resetJoystick);
 window.addEventListener("blur", resetJoystick);
 
+// Evita la selección de texto y bloquea las acciones habituales de copiar, cortar y pegar.
+const preventClipboardAction = (event) => event.preventDefault();
+["selectstart", "copy", "cut", "paste", "contextmenu"].forEach((eventName) => {
+  document.addEventListener(eventName, preventClipboardAction);
+});
+document.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && ["a", "c", "v", "x"].includes(event.key.toLowerCase())) {
+    event.preventDefault();
+  }
+});
+
 // Comparte el enlace con el menú del dispositivo o lo copia si la API nativa no está disponible.
 document.querySelector("#share-button").addEventListener("click", async () => {
   const shareData = { title: "Galaga — Defensa galáctica", text: "¡Defiende la galaxia en este juego arcade!", url: window.location.href };
