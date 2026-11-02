@@ -607,6 +607,17 @@ class GalagaScene extends Phaser.Scene {
       this.playSound(520, 1040, 0.26, "sine", 0.045);
     }
     this.updatePowerupHud();
+    // Hace que el mensaje desaparezca después de 3 segundos (3000 milisegundos)
+    if (this.rewardMessageTimer) {
+      this.time.removeEvent(this.rewardMessageTimer);
+    }
+    this.rewardMessageTimer = this.time.delayedCall(3000, () => {
+      if (storageNotice.textContent.includes("activado") || 
+          storageNotice.textContent.includes("Bomba recogida") || 
+          storageNotice.textContent.includes("Vida extra")) {
+        storageNotice.textContent = "";
+      }
+    });
   }
 
   // Lanza una bomba que detonará cuando alcance un enemigo.
