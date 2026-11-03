@@ -100,7 +100,7 @@ class GalagaScene extends Phaser.Scene {
     }, { once: true });
   }
 
-  // Crea las texturas, el jugador, la primera oleada y las colisiones del juego.
+  // Crea las texturas, el jugador, la primera oleada, los asteroides y las colisiones del juego.
   create() {
     this.createTextures();
     this.createStars();
@@ -112,6 +112,7 @@ class GalagaScene extends Phaser.Scene {
     this.enemyBullets = this.physics.add.group({ allowGravity: false });
     this.bombs = this.physics.add.group({ allowGravity: false });
     this.enemies = this.physics.add.group({ allowGravity: false, immovable: true });
+    this.asteroids = this.physics.add.group({ allowGravity: false });
     this.rewards = this.physics.add.group({ allowGravity: false });
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keys = this.input.keyboard.addKeys("W,A,S,D,SPACE,P,R,B");
@@ -131,18 +132,22 @@ class GalagaScene extends Phaser.Scene {
     this.awaitingNextWave = false;
     this.isPausedGame = false;
     this.nextEnemyShotAt = this.time.now + this.getEnemyFireDelay();
+    this.nextAsteroidSpawnAt = this.time.now + 4000;
     this.createWave();
 
     this.physics.add.overlap(this.bullets, this.enemies, this.hitEnemy, undefined, this);
+    this.physics.add.overlap(this.bullets, this.asteroids, this.hitAsteroidWithBullet, undefined, this);
     this.physics.add.overlap(this.bombs, this.enemies, this.hitBombEnemy, undefined, this);
+    this.physics.add.overlap(this.bombs, this.asteroids, this.hitBombAsteroid, undefined, this);
     this.physics.add.overlap(this.enemyBullets, this.player, this.hitPlayer, undefined, this);
     this.physics.add.overlap(this.enemies, this.player, this.hitPlayer, undefined, this);
+    this.physics.add.overlap(this.asteroids, this.player, this.hitPlayer, undefined, this);
     this.physics.add.overlap(this.rewards, this.player, this.collectReward, undefined, this);
     this.updatePowerupHud();
     this.updateLivesHud();
   }
 
-  // Dibuja las naves y los proyectiles como texturas para no depender de imágenes externas.
+  // Dibuja las naves, asteroides y proyectiles como texturas.
   createTextures() {
     const graphics = this.make.graphics({ x: 0, y: 0, add: false });
 
@@ -176,7 +181,6 @@ class GalagaScene extends Phaser.Scene {
     graphics.generateTexture("player-ship", 64, 64);
     graphics.clear();
 
-    // Crea tres siluetas de invasores con blindaje y luces de distintos colores.
     const drawEnemyTexture = (name, primaryColor, armorColor, lightColor) => {
       graphics.fillStyle(primaryColor, 1);
       graphics.fillPoints([
@@ -244,6 +248,18 @@ class GalagaScene extends Phaser.Scene {
     graphics.generateTexture("enemy-boss", 128, 104);
     graphics.clear();
 
+    // Textura de asteroide rocoso
+    graphics.fillStyle(0x5c5666, 1);
+    graphics.fillPoints([
+      { x: 24, y: 4 }, { x: 42, y: 8 }, { x: 56, y: 22 }, { x: 50, y: 44 },
+      { x: 38, y: 56 }, { x: 18, y: 52 }, { x: 6, y: 38 }, { x: 8, y: 16 }
+    ], true);
+    graphics.fillStyle(0x3a3542, 1);
+    graphics.fillCircle(20, 20, 8);
+    graphics.fillCircle(40, 36, 6);
+    graphics.generateTexture("asteroid", 60, 60);
+    graphics.clear();
+
     graphics.fillStyle(0x3e9bff, 0.55);
     graphics.fillRoundedRect(0, 0, 10, 25, 5);
     graphics.fillStyle(0xc9fbff, 1);
@@ -280,6 +296,7 @@ class GalagaScene extends Phaser.Scene {
     graphics.fillCircle(30, 7, 3);
     graphics.generateTexture("reward-bomb", 40, 40);
     graphics.clear();
+
     graphics.fillStyle(0x3a1c2a, 1);
     graphics.fillCircle(12, 12, 11);
     graphics.lineStyle(2, 0xffbd69, 1);
@@ -307,7 +324,7 @@ class GalagaScene extends Phaser.Scene {
     graphics.destroy();
   }
 
-  // Distribuye estrellas en el fondo para dar profundidad y movimiento al espacio.
+  // Distribuye estrellas en el fondo.
   createStars() {
     this.stars = [];
     for (let index = 0; index < 85; index += 1) {
@@ -324,10 +341,12 @@ class GalagaScene extends Phaser.Scene {
     }
   }
 
-  // Genera una formación de enemigos con una velocidad que aumenta en cada oleada.
+  // Genera formaciones de enemigos dinámicas que cambian según la oleada (Nivel).
   createWave() {
     this.formationOffset = 0;
     this.formationDirection = 1;
+    
+    // Cada 4 niveles aparece el Jefe de Sector
     if (this.wave % 4 === 0) {
       const boss = this.enemies.create(this.scale.width / 2, 120, "enemy-boss");
       this.maybeHideReward(boss);
@@ -348,20 +367,71 @@ class GalagaScene extends Phaser.Scene {
       return;
     }
 
-    for (let row = 0; row < 4; row += 1) {
-      for (let column = 0; column < 8; column += 1) {
-        const texture = row === 0 ? "enemy-elite" : row === 1 ? "enemy-guardian" : "enemy-scout";
-        const formationOffset = (this.scale.width - MOBILE_GAME_WIDTH) / 2;
-        const enemy = this.enemies.create(160 + formationOffset + column * 68, 80 + row * 53, texture);
-        enemy.setDepth(1);
-        enemy.body.setAllowGravity(false);
-        enemy.setData("baseX", enemy.x);
-        this.maybeHideReward(enemy);
+    // Patrones dinámicos según el número de oleada
+    const patternType = (this.wave - 1) % 3; 
+    const formationOffset = (this.scale.width - MOBILE_GAME_WIDTH) / 2;
+
+    if (patternType === 0) {
+      // Patrón Rectangular Clásico (4 filas x 8 columnas)
+      for (let row = 0; row < 4; row += 1) {
+        for (let column = 0; column < 8; column += 1) {
+          const texture = row === 0 ? "enemy-elite" : row === 1 ? "enemy-guardian" : "enemy-scout";
+          const enemy = this.enemies.create(160 + formationOffset + column * 68, 80 + row * 53, texture);
+          enemy.setDepth(1);
+          enemy.body.setAllowGravity(false);
+          enemy.setData("baseX", enemy.x);
+          this.maybeHideReward(enemy);
+        }
+      }
+    } else if (patternType === 1) {
+      // Patrón en V / Diamante
+      for (let row = 0; row < 4; row += 1) {
+        const countInRow = 5 + row * 2;
+        const startX = (this.scale.width - (countInRow * 56)) / 2;
+        for (let column = 0; column < countInRow; column += 1) {
+          const texture = row === 0 ? "enemy-elite" : "enemy-guardian";
+          const enemy = this.enemies.create(startX + column * 56, 70 + row * 52, texture);
+          enemy.setDepth(1);
+          enemy.body.setAllowGravity(false);
+          enemy.setData("baseX", enemy.x);
+          this.maybeHideReward(enemy);
+        }
+      }
+    } else {
+      // Patrón en Arcos / Doble Ola
+      for (let row = 0; row < 5; row += 1) {
+        for (let column = 0; column < 7; column += 1) {
+          const texture = row % 2 === 0 ? "enemy-elite" : "enemy-scout";
+          const arcOffset = Math.sin(column * 0.8) * 35;
+          const enemy = this.enemies.create(200 + formationOffset + column * 80, 60 + row * 45 + arcOffset, texture);
+          enemy.setDepth(1);
+          enemy.body.setAllowGravity(false);
+          enemy.setData("baseX", enemy.x);
+          this.maybeHideReward(enemy);
+        }
       }
     }
   }
 
-  // Lee teclado y controles táctiles, mueve la nave y dispara mientras la partida esté activa.
+  // Genera asteroides cruzando la pantalla de forma aleatoria.
+  spawnAsteroid() {
+    if (!this.isPlaying) return;
+    const startFromLeft = Math.random() < 0.5;
+    const startX = startFromLeft ? -50 : this.scale.width + 50;
+    const startY = Phaser.Math.Between(80, GAME_HEIGHT - 150);
+    const targetX = startFromLeft ? this.scale.width + 100 : -100;
+    const targetY = Phaser.Math.Between(100, GAME_HEIGHT - 100);
+    
+    const asteroid = this.asteroids.create(startX, startY, "asteroid");
+    asteroid.setDepth(2);
+    asteroid.body.setAllowGravity(false);
+    const speed = Phaser.Math.FloatBetween(90, 180 + this.wave * 10);
+    const angle = Math.atan2(targetY - startY, targetX - startX);
+    asteroid.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
+    asteroid.setData("expiresAt", this.time.now + 12000);
+  }
+
+  // Bucle principal de actualización de juego, asteroides y físicas.
   update(_time, delta) {
     if (Phaser.Input.Keyboard.JustDown(this.keys.R)) {
       this.restartGame();
@@ -387,13 +457,14 @@ class GalagaScene extends Phaser.Scene {
       }
     });
 
-    [this.bullets, this.enemyBullets, this.bombs].forEach((group) => {
+    [this.bullets, this.enemyBullets, this.bombs, this.asteroids].forEach((group) => {
       group.getChildren().forEach((bullet) => {
-        if (bullet && bullet.active && (bullet.y < -20 || bullet.y > GAME_HEIGHT + 20)) {
+        if (bullet && bullet.active && (bullet.y < -50 || bullet.y > GAME_HEIGHT + 50 || bullet.x < -100 || bullet.x > this.scale.width + 100)) {
           bullet.destroy();
         }
       });
     });
+
     this.rewards.getChildren().forEach((reward) => {
       if (reward && reward.active && (reward.y > GAME_HEIGHT + 24 || this.time.now > reward.getData("expiresAt"))) {
         reward.destroy();
@@ -405,6 +476,12 @@ class GalagaScene extends Phaser.Scene {
     }
     if (Phaser.Input.Keyboard.JustDown(this.keys.B)) {
       this.launchBomb();
+    }
+
+    // Generador periódico de asteroides cruzando la pantalla
+    if (this.time.now >= this.nextAsteroidSpawnAt) {
+      this.spawnAsteroid();
+      this.nextAsteroidSpawnAt = this.time.now + Math.max(2500, 7000 - (this.wave * 400));
     }
 
     const horizontalDirection = Phaser.Math.Clamp(
@@ -463,7 +540,7 @@ class GalagaScene extends Phaser.Scene {
     });
   }
 
-  // Lanza un proyectil desde la nave y limita la cadencia para mantener el control del juego.
+  // Disparo del jugador
   shoot() {
     if (this.time.now - this.lastShotAt < 230) {
       return;
@@ -481,7 +558,7 @@ class GalagaScene extends Phaser.Scene {
     });
   }
 
-  // Escoge un invasor vivo y dispara hacia la zona de la nave del jugador.
+  // Disparos enemigos
   enemyFire() {
     if (!this.isPlaying || this.enemies.countActive() === 0) {
       return;
@@ -501,7 +578,6 @@ class GalagaScene extends Phaser.Scene {
     this.nextEnemyShotAt = this.time.now + this.getEnemyFireDelay();
   }
 
-  // Oculta premios al azar para que solo una pequeña parte de los enemigos los suelte.
   maybeHideReward(enemy) {
     if (Math.random() < 0.05) {
       const rewards = ["weapon", "bomb", "life"];
@@ -509,7 +585,6 @@ class GalagaScene extends Phaser.Scene {
     }
   }
 
-  // Deja caer el premio oculto del enemigo cuando este es destruido.
   dropReward(enemy) {
     const rewardType = enemy.getData("rewardType");
     if (!rewardType) {
@@ -524,7 +599,6 @@ class GalagaScene extends Phaser.Scene {
     reward.setData("expiresAt", this.time.now + 10000);
   }
 
-  // Dibuja una explosión breve para impactos y enemigos destruidos.
   createExplosion(x, y, color = 0xff9a52, radius = 30) {
     const explosion = this.add.graphics().setPosition(x, y).setDepth(5);
     explosion.fillStyle(0xffe6a3, 0.95);
@@ -552,7 +626,6 @@ class GalagaScene extends Phaser.Scene {
     });
   }
 
-  // Elimina un enemigo normal, suelta su premio y completa la oleada si era el último.
   destroyEnemy(enemy, completeWave = true) {
     if (!enemy.active || enemy.getData("isBoss")) {
       return;
@@ -566,7 +639,6 @@ class GalagaScene extends Phaser.Scene {
     }
   }
 
-  // Actualiza los contadores de armas y bombas y el estado de sus botones.
   updatePowerupHud() {
     weaponValue.textContent = this.weaponLevel > 1 ? "×2" : "×1";
     weaponValue.setAttribute("aria-label", this.weaponLevel > 1 ? "Disparo doble" : "Disparo simple");
@@ -578,13 +650,11 @@ class GalagaScene extends Phaser.Scene {
     touchBombButton.disabled = this.bombCount === 0;
   }
 
-  // Muestra todas las vidas acumuladas, incluso si se supera el número inicial.
   updateLivesHud() {
     livesValue.textContent = Array.from({ length: this.lives }, () => "♥").join(" ");
     livesValue.setAttribute("aria-label", `${this.lives} vidas`);
   }
 
-  // Recoge premios para mejorar el arma, guardar bombas o añadir corazones.
   collectReward(first, second) {
     const reward = [first, second].find((object) => ["weapon", "bomb", "life"].includes(object.getData("rewardType")));
     if (!reward || !reward.active || !this.isPlaying) {
@@ -607,7 +677,6 @@ class GalagaScene extends Phaser.Scene {
       this.playSound(520, 1040, 0.26, "sine", 0.045);
     }
     this.updatePowerupHud();
-    // Hace que el mensaje desaparezca después de 3 segundos (3000 milisegundos)
     if (this.rewardMessageTimer) {
       this.time.removeEvent(this.rewardMessageTimer);
     }
@@ -620,7 +689,6 @@ class GalagaScene extends Phaser.Scene {
     });
   }
 
-  // Lanza una bomba que detonará cuando alcance un enemigo.
   launchBomb() {
     if (!this.isPlaying || this.bombCount === 0) {
       return;
@@ -637,7 +705,21 @@ class GalagaScene extends Phaser.Scene {
     bomb.setData("expiresAt", this.time.now + 2500);
   }
 
-  // Detona la bomba al impactar y afecta hasta cuatro enemigos cercanos al punto de choque.
+  hitAsteroidWithBullet(bullet, asteroid) {
+    bullet.destroy();
+    this.createExplosion(asteroid.x, asteroid.y, 0x888888, 15);
+    asteroid.destroy();
+    this.addScore(25);
+  }
+
+  hitBombAsteroid(bomb, asteroid) {
+    bomb.destroy();
+    this.createBombExplosion(asteroid.x, asteroid.y);
+    asteroid.destroy();
+    this.addScore(50);
+  }
+
+  // Detonación de bomba: hace daño al Jefe o destruye enemigos cercanos.
   hitBombEnemy(bomb, enemy) {
     if (!bomb.active || !enemy.active) {
       return;
@@ -675,7 +757,6 @@ class GalagaScene extends Phaser.Scene {
     }
   }
 
-  // Dibuja una explosión en cruz desde el punto de impacto de la bomba.
   createBombExplosion(x, y) {
     const explosion = this.add.graphics().setDepth(4);
     explosion.setPosition(x, y);
@@ -698,7 +779,6 @@ class GalagaScene extends Phaser.Scene {
     });
   }
 
-  // Dibuja la barra de vida del jefe encima de su nave.
   drawBossHealth(boss) {
     if (!this.bossHealthBar || !this.bossLabel) {
       return;
@@ -715,7 +795,6 @@ class GalagaScene extends Phaser.Scene {
     this.bossLabel.setPosition(boss.x, top - 10);
   }
 
-  // Elimina la interfaz de salud del jefe cuando termina su combate.
   clearBossDisplay() {
     this.bossHealthBar?.destroy();
     this.bossLabel?.destroy();
@@ -723,22 +802,19 @@ class GalagaScene extends Phaser.Scene {
     this.bossLabel = null;
   }
 
-  // Aumenta la velocidad de la formación con cada oleada y evita una aceleración ilimitada.
   getFormationSpeed() {
     return Math.min(14 + (this.wave - 1) * 9 + this.bossSpeedBonus, 110);
   }
 
-  // Hace que los proyectiles enemigos también se aceleren gradualmente entre oleadas.
   getEnemyBulletSpeed() {
     return Math.min(120 + (this.wave - 1) * 18 + this.bossSpeedBonus * 1.5, 380);
   }
 
-  // Reduce gradualmente el tiempo entre disparos enemigos conforme avanzan las oleadas.
   getEnemyFireDelay() {
     return Math.max(550, 1550 - (this.wave - 1) * 120 - this.bossSpeedBonus * 6);
   }
 
-  // Aplica daño a los enemigos, actualiza puntos y completa el nivel al vaciar la formación.
+  // Impacto de balas a enemigos (incluyendo daño al jefe)
   hitEnemy(bullet, enemy) {
     bullet.destroy();
     this.playSound(420, 180, 0.11, "triangle", 0.035);
@@ -748,6 +824,8 @@ class GalagaScene extends Phaser.Scene {
       this.addScore(100);
       if (health <= 0) {
         this.defeatBoss(enemy);
+      } else {
+        this.drawBossHealth(enemy);
       }
       return;
     }
@@ -755,7 +833,6 @@ class GalagaScene extends Phaser.Scene {
     this.destroyEnemy(enemy);
   }
 
-  // Derrota al jefe, suelta su premio y cambia la paleta del espacio.
   defeatBoss(boss) {
     this.dropReward(boss);
     this.createExplosion(boss.x, boss.y, 0xc03cff, 64);
@@ -768,7 +845,6 @@ class GalagaScene extends Phaser.Scene {
     this.finishWave(true);
   }
 
-  // Suma puntos, actualiza el récord y lo guarda localmente cuando cambia.
   addScore(points) {
     this.score += points;
     scoreValue.textContent = String(this.score).padStart(5, "0");
@@ -783,7 +859,6 @@ class GalagaScene extends Phaser.Scene {
     }
   }
 
-  // Muestra el resultado del nivel y espera a que el jugador inicie la siguiente oleada.
   finishWave(defeatedBoss) {
     this.playSound(523, 784, 0.16, "triangle", 0.04);
     this.playSound(659, 988, 0.18, "triangle", 0.04, 0.12);
@@ -804,14 +879,16 @@ class GalagaScene extends Phaser.Scene {
     startButton.innerHTML = '<i class="bi bi-arrow-right-circle me-2" aria-hidden="true"></i>Siguiente nivel';
   }
 
-  // Resta una vida al recibir un impacto y termina la partida cuando ya no quedan vidas.
+  // Daño a la nave al chocar con enemigos, jefe, asteroides o balas enemigas.
   hitPlayer(first, second) {
     if (!this.isPlaying || this.time.now < this.invulnerableUntil) {
       return;
     }
     const collidedObject = first === this.player ? second : first;
     if (collidedObject !== this.player && collidedObject.getData("isBoss") !== true) {
-      if (typeof collidedObject.getData("baseX") === "number") {
+      if (collidedObject.texture && collidedObject.texture.key === "asteroid") {
+        collidedObject.destroy();
+      } else if (typeof collidedObject.getData("baseX") === "number") {
         this.destroyEnemy(collidedObject, false);
       } else {
         collidedObject.destroy();
@@ -846,7 +923,6 @@ class GalagaScene extends Phaser.Scene {
     }
   }
 
-  // Detiene la partida y muestra el resultado con una opción para volver a jugar.
   finishGame() {
     if (!this.isPlaying) {
       return;
@@ -867,7 +943,6 @@ class GalagaScene extends Phaser.Scene {
     startButton.innerHTML = '<i class="bi bi-arrow-clockwise me-2" aria-hidden="true"></i>Jugar de nuevo';
   }
 
-  // Inicia la siguiente oleada después de mostrar el mensaje de nivel superado.
   continueWave() {
     this.playSound(440, 660, 0.2, "triangle", 0.04);
     this.awaitingNextWave = false;
@@ -878,7 +953,6 @@ class GalagaScene extends Phaser.Scene {
     pauseButton.hidden = false;
   }
 
-  // Pausa el mundo y abre el panel de pausa, o reanuda si ya estaba detenido.
   togglePause() {
     if (this.isPausedGame) {
       this.resumeGame();
@@ -902,7 +976,6 @@ class GalagaScene extends Phaser.Scene {
     pauseButton.setAttribute("aria-label", "Reanudar juego");
   }
 
-  // Cierra el panel de pausa y reactiva la física y los controles.
   resumeGame() {
     this.playSound(330, 440, 0.12, "sine", 0.035);
     this.isPausedGame = false;
@@ -916,7 +989,6 @@ class GalagaScene extends Phaser.Scene {
     pauseButton.setAttribute("aria-label", "Pausar juego");
   }
 
-  // Reinicia la escena con el marcador y las vidas iniciales.
   startGame() {
     this.initializeAudio();
     this.playSound(440, 660, 0.2, "triangle", 0.04);
@@ -952,12 +1024,12 @@ class GalagaScene extends Phaser.Scene {
     this.events.once("create", () => {
       this.isPlaying = true;
       this.nextEnemyShotAt = this.time.now + this.getEnemyFireDelay();
+      this.nextAsteroidSpawnAt = this.time.now + 4000;
       this.physics.world.resume();
       pauseButton.hidden = false;
     });
   }
 
-  // Reinicia la partida desde el primer sector restableciendo física, estado y oleadas.
   restartGame() {
     if (this.isPausedGame) {
       this.physics.world.resume();
@@ -968,7 +1040,6 @@ class GalagaScene extends Phaser.Scene {
   }
 }
 
-// Configura el lienzo escalable de Phaser y vincula los botones de la página.
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   width: getGameWidth(),
@@ -986,7 +1057,6 @@ const game = new Phaser.Game({
   scene: [GalagaScene]
 });
 
-// Ajusta la proporción del área de juego si la ventana cambia entre móvil y computador.
 desktopLayout.addEventListener("change", (event) => {
   const width = event.matches ? DESKTOP_GAME_WIDTH : MOBILE_GAME_WIDTH;
   const scene = game.scene.getScene("galaga");
@@ -997,7 +1067,7 @@ desktopLayout.addEventListener("change", (event) => {
     scene.player.x = Phaser.Math.Clamp(scene.player.x * widthRatio, 32, width - 32);
   }
   scene.stars?.forEach((star) => { star.x *= widthRatio; });
-  [scene.bullets, scene.enemyBullets, scene.bombs, scene.enemies, scene.rewards].forEach((group) => {
+  [scene.bullets, scene.enemyBullets, scene.bombs, scene.enemies, scene.asteroids, scene.rewards].forEach((group) => {
     group?.getChildren().forEach((entity) => {
       entity.x *= widthRatio;
       const baseX = entity.getData("baseX");
@@ -1020,13 +1090,11 @@ startButton.addEventListener("click", () => {
   }
 });
 
-// Permite pausar o reanudar con el botón visible en el marcador.
 pauseButton.addEventListener("click", () => {
   pauseButton.blur();
   game.scene.getScene("galaga").togglePause();
 });
 
-// Permite usar las bombas desde los botones de computador y celular.
 bombButton.addEventListener("click", () => {
   game.scene.getScene("galaga").launchBomb();
 });
@@ -1034,7 +1102,6 @@ touchBombButton.addEventListener("click", () => {
   game.scene.getScene("galaga").launchBomb();
 });
 
-// Permite reiniciar la partida desde el marcador en cualquier momento.
 if (restartButton) {
   restartButton.addEventListener("click", () => {
     restartButton.blur();
@@ -1042,7 +1109,6 @@ if (restartButton) {
   });
 }
 
-// Permite reiniciar la partida desde el panel de pausa.
 if (overlayRestartButton) {
   overlayRestartButton.addEventListener("click", () => {
     overlayRestartButton.blur();
@@ -1050,7 +1116,6 @@ if (overlayRestartButton) {
   });
 }
 
-// Mantiene el disparo táctil activo hasta que se suelta el dedo o el botón pierde el foco.
 document.querySelectorAll("[data-control]").forEach((button) => {
   const control = button.dataset.control;
   const release = () => {
@@ -1068,7 +1133,6 @@ document.querySelectorAll("[data-control]").forEach((button) => {
   button.addEventListener("lostpointercapture", release);
 });
 
-// Traduce el desplazamiento del joystick en movimiento horizontal y vertical.
 let joystickPointerId = null;
 const resetJoystick = () => {
   joystickPointerId = null;
@@ -1112,7 +1176,6 @@ virtualJoystick.addEventListener("pointercancel", resetJoystick);
 virtualJoystick.addEventListener("lostpointercapture", resetJoystick);
 window.addEventListener("blur", resetJoystick);
 
-// Evita la selección de texto y bloquea las acciones habituales de copiar, cortar y pegar.
 const preventClipboardAction = (event) => event.preventDefault();
 ["selectstart", "copy", "cut", "paste", "contextmenu"].forEach((eventName) => {
   document.addEventListener(eventName, preventClipboardAction);
@@ -1123,7 +1186,6 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-// Comparte el enlace con el menú del dispositivo o lo copia si la API nativa no está disponible.
 document.querySelector("#share-button").addEventListener("click", async () => {
   const shareData = { title: "Galaga — Defensa galáctica", text: "¡Defiende la galaxia en este juego arcade!", url: window.location.href };
   try {
